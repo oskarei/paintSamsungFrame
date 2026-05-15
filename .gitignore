@@ -4,7 +4,6 @@
 !.env.example
 
 # Project-specific secrets / local state
-petDescription
 token.txt
 archive/
 state.json
