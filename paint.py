@@ -6,8 +6,9 @@ to a Samsung Frame TV. Uses the Gemini API for everything.
 Flow:
   1. recent_scenes() reads the last 14 archived scenes (environment + activity
      only — the pet itself is never part of this)
-  2. Gemini (text) invents a fresh random environment + activity + art direction,
-     explicitly told to differ from those recent scenes
+  2. Python picks today's art style at random from the artStyles file, then
+     Gemini (text) invents an environment + activity + mood + palette that
+     suit that style, told to differ from those recent scenes
   3. The scene is combined with the petDescription file into a painting prompt
   4. Gemini (Nano Banana Pro) generates the image natively at 4K, 16:9
   5. The image is normalized to a clean 3840x2160 JPEG for the Frame
@@ -30,6 +31,7 @@ import sys
 import json
 import time
 import base64
+import random
 import logging
 import datetime
 from pathlib import Path
@@ -69,6 +71,8 @@ STATE_FILE    = BASE_DIR / "state.json"
 LOG_FILE      = BASE_DIR / "daily_cat_art.log"
 TOKEN_FILE    = BASE_DIR / "token.txt"
 PET_DESC_FILE = BASE_DIR / "petDescription"      # plain-text pet description
+ART_STYLES_FILE = BASE_DIR / "artStyles"         # plain text, one art style per line
+PAINTING_PROMPT_FILE = BASE_DIR / "paintingPrompt"   # image-prompt template (editable)
 
 # HTTP status codes worth retrying — transient server / rate-limit errors.
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
@@ -119,6 +123,37 @@ def load_pet_description() -> str:
     return text
 
 
+def load_art_styles() -> list[str]:
+    """Read the curated art-style list. One style per line; blank lines and
+    lines starting with '#' are ignored so the file can stay annotated."""
+    if not ART_STYLES_FILE.exists():
+        raise FileNotFoundError(f"Art styles file not found: {ART_STYLES_FILE}")
+    styles = []
+    for line in ART_STYLES_FILE.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            styles.append(line)
+    if not styles:
+        raise ValueError(f"Art styles file has no usable lines: {ART_STYLES_FILE}")
+    return styles
+
+
+def load_painting_prompt() -> str:
+    """Read the image-prompt template. Lines starting with '#' are dropped
+    so the file can carry editing guidance; blank lines are preserved
+    because they separate sections of the prompt."""
+    if not PAINTING_PROMPT_FILE.exists():
+        raise FileNotFoundError(f"Painting prompt file not found: {PAINTING_PROMPT_FILE}")
+    lines = [
+        line for line in PAINTING_PROMPT_FILE.read_text(encoding="utf-8").splitlines()
+        if not line.lstrip().startswith("#")
+    ]
+    text = "\n".join(lines).strip()
+    if not text:
+        raise ValueError(f"Painting prompt file is empty: {PAINTING_PROMPT_FILE}")
+    return text
+
+
 def recent_scenes(n: int = RECENT_COUNT) -> list[dict]:
     """Return the last n scenes as {environment, activity} — pet is skipped."""
     scenes = []
@@ -165,32 +200,35 @@ def prune_archive(keep: int = ARCHIVE_KEEP) -> None:
 
 
 # ----------------------------------------------------------------------
-# Stage 1 — Gemini invents a random environment + activity + art direction.
+# Stage 1 — Python picks the art style at random from artStyles, then
+# Gemini invents an environment + activity + mood + palette that suit it.
 # The pet is deliberately NOT mentioned here, so the scene history stays
 # reusable even if the pet changes later.
 # ----------------------------------------------------------------------
 def generate_scene(recent: list[dict]) -> dict:
-    prompt = f"""You are an art director planning a daily series of paintings of
-a domestic pet. Each day you invent a fresh SCENE for the painting -- but you
-never describe the pet itself, only its surroundings and what it is doing.
+    art_style = random.choice(load_art_styles())
+    log.info("Picked art style: %s", art_style)
 
-Invent ONE scene for today. It must be clearly distinct from the recent scenes
-listed below: a different environment, a different activity, a different time
-of day and overall feel.
+    prompt = f"""You are an art director planning a daily series of paintings
+of a domestic pet. The art style for today has already been chosen:
+
+  Art style: {art_style}
+
+Invent ONE scene for today that genuinely suits that style. Do NOT describe
+the pet itself -- only its surroundings and what it is doing. The scene must
+be clearly distinct from the recent scenes listed below: a different
+environment, a different activity, a different time of day and overall feel.
 
 Recent scenes to avoid repeating:
 {format_recent(recent)}
 
 Vary widely. Scenes may be mundane (a sunlit kitchen floor) or fantastical
-(the deck of an airship above the clouds). Choose a tasteful, gallery-worthy
-art style and vary that too -- e.g. Studio Ghibli watercolour, Hammershoi
-interior, Hokusai woodblock, Sargent oil portrait, Klimt gold leaf, Kjarval
-Icelandic landscape, art nouveau poster. Avoid generic 'digital art'.
+(the deck of an airship above the clouds). Pick a mood and palette that
+genuinely complement the chosen art style.
 
 Respond with a JSON object containing exactly these keys:
   "environment" : one vivid sentence describing the setting/surroundings
   "activity"    : one short phrase describing what the pet is doing
-  "art_style"   : the specific artistic style and medium
   "mood"        : two or three mood words
   "palette"     : a short colour-palette description
 """
@@ -205,6 +243,7 @@ Respond with a JSON object containing exactly these keys:
         what="Scene generation",
     )
     scene = json.loads(response.text)
+    scene["art_style"] = art_style       # Python-side, not Gemini-side
     log.info("Scene: %s", scene)
     return scene
 
@@ -214,20 +253,49 @@ Respond with a JSON object containing exactly these keys:
 # No second API call needed.
 # ----------------------------------------------------------------------
 def build_image_prompt(scene: dict, pet_description: str) -> str:
-    return f"""{scene['art_style']} painting of a domestic pet.
+    template = load_painting_prompt()
+    return template.format(
+        art_style=scene["art_style"],
+        pet_description=pet_description,
+        environment=scene["environment"],
+        activity=scene["activity"],
+        mood=scene["mood"],
+        palette=scene["palette"],
+    )
 
-The pet (keep faithful to this exact description):
-{pet_description}
 
-Setting: {scene['environment']}
-The pet is: {scene['activity']}
-Mood: {scene['mood']}.
-Colour palette: {scene['palette']}.
+def build_asset_description(scene: dict) -> str:
+    """Render the painting prompt WITHOUT the pet description, for the
+    Contentstack asset's `description` field. The pet description is
+    private (gitignored) and long enough to push the asset description
+    past its 1000-char limit, so the line carrying `{pet_description}`
+    -- plus the header line directly above it -- is stripped before the
+    remaining template is formatted."""
+    raw = PAINTING_PROMPT_FILE.read_text(encoding="utf-8")
+    lines = [line for line in raw.splitlines() if not line.lstrip().startswith("#")]
 
-Composition: gallery-quality, 16:9 landscape orientation, the pet as the clear
-focal point, balanced negative space. No text, no captions, no signatures,
-no watermark, no border or frame within the image.
-""".strip()
+    cleaned: list[str] = []
+    for line in lines:
+        if "{pet_description}" in line:
+            # drop the header line directly above (e.g. "The pet (...):"),
+            # if there is one. A blank line in that slot is left alone.
+            if cleaned and cleaned[-1].strip():
+                cleaned.pop()
+            continue
+        cleaned.append(line)
+
+    text = "\n".join(cleaned)
+    while "\n\n\n" in text:
+        text = text.replace("\n\n\n", "\n\n")
+    text = text.strip()
+
+    return text.format(
+        art_style=scene["art_style"],
+        environment=scene["environment"],
+        activity=scene["activity"],
+        mood=scene["mood"],
+        palette=scene["palette"],
+    )
 
 
 # ----------------------------------------------------------------------
@@ -285,11 +353,14 @@ def trim_for_cs(text: str, limit: int = CS_DESCRIPTION_MAX) -> str:
     return text[:limit].rsplit(" ", 1)[0].rstrip()
 
 
-def upload_to_contentstack(img_bytes: bytes, prompt: str, today: str) -> None:
+def upload_to_contentstack(img_bytes: bytes, description: str, today: str,
+                           art_style: str) -> None:
     if not CS_API_KEY or not CS_MANAGEMENT_TOKEN:
         log.warning("Contentstack upload skipped: CS_API_KEY / "
                     "CS_MANAGEMENT_TOKEN not set in the environment.")
         return
+
+    style_tag = art_style.lower().replace(" ", "_")
 
     url = f"{CS_API_BASE}/v3/assets"
     headers = {
@@ -303,8 +374,8 @@ def upload_to_contentstack(img_bytes: bytes, prompt: str, today: str) -> None:
     data = {
         "asset[parent_uid]": csFolder,                  # place it in the folder
         "asset[title]": f"Painting {today}",
-        "asset[description]": trim_for_cs(prompt),      # trimmed to <= 1000 chars
-        "asset[tags]": [csTag],                         # list -> repeated field, as CS expects
+        "asset[description]": trim_for_cs(description), # safety-trim to <= 1000 chars
+        "asset[tags]": [csTag, style_tag],              # list -> repeated field, as CS expects
     }
     resp = requests.post(url, headers=headers, files=files, data=data, timeout=60)
     if not resp.ok:
@@ -408,7 +479,12 @@ def main() -> int:
         # optional Contentstack upload — non-fatal, must not block the TV update
         if uploadToContentstack:
             try:
-                upload_to_contentstack(framed, prompt, today)
+                upload_to_contentstack(
+                    framed,
+                    build_asset_description(scene),
+                    today,
+                    scene["art_style"],
+                )
             except Exception as e:
                 log.warning("Contentstack upload failed (non-fatal): %s", e)
         else:

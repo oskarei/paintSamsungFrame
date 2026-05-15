@@ -1,0 +1,33 @@
+# Painting prompt template -- the prompt sent to Gemini's image model.
+#
+# Lines starting with '#' are comments and are ignored. Blank lines are
+# preserved (they separate sections of the prompt).
+#
+# Placeholders -- these get filled in automatically each day:
+#   {art_style}       the art style picked for today (e.g. "Hokusai woodblock")
+#   {pet_description} the contents of the petDescription file
+#   {environment}     the setting that Gemini invented for today
+#   {activity}        what the pet is doing today
+#   {mood}            two or three mood words
+#   {palette}         a short colour-palette description
+#
+# Edit freely. To restore the default, check git history for this file.
+
+{art_style} painting of a domestic pet.
+
+The pet (keep faithful to this exact description):
+{pet_description}
+
+Setting: {environment}
+The pet is: {activity}
+Mood: {mood}.
+Colour palette: {palette}.
+
+Depiction: render the pet as a real painting in the chosen medium -- not
+cartoonish and not photorealistic. Where the medium has visible mark-making
+(oil, gouache, watercolour, pastel, ink), let the brushwork and texture of
+the medium show clearly. The pet should look painted, not posed for a camera.
+
+Composition: gallery-quality, 16:9 landscape orientation, the pet as the clear
+focal point, balanced negative space. No text, no captions, no signatures,
+no watermark, no border or frame within the image.

@@ -5,23 +5,32 @@ high-signal — it loads into context every session.
 
 ## What this is
 
-A daily art generator. Once a day (via cron on a Raspberry Pi) it generates a
-fresh painting of a pet, pushes it to a Samsung Frame TV as the displayed
-artwork, and optionally archives it to Contentstack. The whole thing runs
-unattended.
+A daily art generator. Once a day (via cron on a Raspberry Pi) `paint.py`
+generates a fresh painting of a pet, pushes it to a Samsung Frame TV as the
+displayed artwork, and optionally archives it to Contentstack. The whole
+thing runs unattended.
 
-Single script: `paint.py`. There is no package structure — it is one file by
-design.
+`push.py` is a small companion script (laptop-side, ad-hoc) for pushing an
+override image to the same Frame TV from a local path or URL. It centre-crops
+to 16:9 if needed and rejects sources too small to fill 3840x2160 without
+upscaling. It tracks its own `manual_state.json` so it doesn't trample
+`paint.py`'s `state.json`.
+
+No package structure — both scripts stand alone by design.
 
 ## Daily flow
 
-1. **Load inputs** — read `petDescription` (plain-text pet description) and the
-   last 14 archived scenes from `archive/*.json`.
-2. **Generate scene** — Gemini (`gemini-2.5-flash`) invents a random
-   environment + activity + art direction as JSON, explicitly told to differ
-   from the recent 14.
-3. **Build prompt** — pure string assembly: the scene is combined with the pet
-   description into the final image prompt. No second LLM call here.
+1. **Load inputs** — read `petDescription` (plain-text pet description),
+   `artStyles` (one curated art style per line), `paintingPrompt` (the
+   image-prompt template), and the last 14 archived scenes from
+   `archive/*.json`.
+2. **Generate scene** — Python picks today's art style at random from
+   `artStyles`, then Gemini (`gemini-2.5-flash`) invents an environment +
+   activity + mood + palette that suit it, explicitly told to differ from
+   the recent 14.
+3. **Build prompt** — pure string assembly: the `paintingPrompt` template is
+   filled in with the scene values and the pet description. No second LLM
+   call here.
 4. **Generate image** — Gemini Nano Banana Pro (`gemini-3-pro-image-preview`)
    renders the painting natively at 4K, 16:9.
 5. **Normalize** — convert to a clean 3840x2160 RGB JPEG for the Frame.
@@ -34,6 +43,10 @@ design.
 
 ## Key design decisions — do not "fix" these
 
+- **The pet is described in text, not by reference photo.** Gemini takes a
+  reference image too literally — it drops the exact reference into the
+  painting instead of reinterpreting the pet in the chosen art style. A text
+  description gives the model room to stylize.
 - **The pet is deliberately excluded from scene generation (step 2).** Gemini
   invents only the environment and activity; the pet is added later in step 3.
   This keeps the archived scene history reusable even if the pet changes, and
@@ -54,9 +67,14 @@ design.
   - `FRAME_TV_IP` — local IP of the Samsung Frame TV
   - `CS_API_KEY` — Contentstack API key
   - `CS_MANAGEMENT_TOKEN` — Contentstack management token
-- Required local files (not in git):
-  - `petDescription` — plain-text description of the pet
-  - `token.txt` — Samsung TV pairing token, created on first run
+- Required local files:
+  - `petDescription` — plain-text description of the pet (not in git)
+  - `token.txt` — Samsung TV pairing token, created on first run (not in git)
+  - `artStyles` — curated art-style list, one per line; committed to git
+  - `paintingPrompt` — image-prompt template with `{art_style}`, `{pet_description}`,
+    `{environment}`, `{activity}`, `{mood}`, `{palette}` placeholders. Lines
+    starting with `#` are stripped at load; blank lines preserved. Committed
+    to git so the default is restorable from history.
 - cron does not load the shell profile — set env vars inline in the crontab
   entry or source them explicitly.
 
@@ -98,9 +116,4 @@ generation, Frame upload, archive + prune, Contentstack upload.
 
 ## Open / next
 
-- **Reference-image consistency.** The pet is currently described in text only,
-  so the rendered animal varies day to day — text can describe a *type* of pet,
-  not a specific individual. The planned fix is to pass a real reference photo
-  (e.g. `reference.jpg`) into the image generation call so Nano Banana Pro
-  holds the pet's appearance steady. This is the main known limitation.
 - Possible later: a public gallery view of the archive.
