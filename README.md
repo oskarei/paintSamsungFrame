@@ -249,6 +249,6 @@ MIT — see [LICENSE](LICENSE).
 
 ## Acknowledgements
 
-- Samsung's [`samsung-tv-ws-api`](https://github.com/xchwarze/samsung-tv-ws-api) for talking to the Frame.
+- xchwarze's [`samsung-tv-ws-api`](https://github.com/xchwarze/samsung-tv-ws-api) for talking to the Frame.
 - Google's Gemini API for the actual painting.
 - One very specific cat for being the reason any of this exists.
