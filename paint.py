@@ -31,6 +31,7 @@ import sys
 import json
 import time
 import base64
+import socket
 import random
 import logging
 import datetime
@@ -47,6 +48,7 @@ from samsungtvws import SamsungTVWS
 # Configuration
 # ----------------------------------------------------------------------
 TV_IP          = os.environ.get("FRAME_TV_IP", "192.168.1.50")
+TV_MAC         = os.environ.get("FRAME_TV_MAC")       # optional; enables Wake-on-LAN
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")     # must be set
 TEXT_MODEL     = "gemini-2.5-flash"
 IMAGE_MODEL    = "gemini-3-pro-image-preview"   # Nano Banana Pro — supports 4K
@@ -63,6 +65,8 @@ CS_MANAGEMENT_TOKEN  = os.environ.get("CS_MANAGEMENT_TOKEN")   # Management toke
 CS_API_BASE          = "https://eu-api.contentstack.com"      # EU region CMA
 csFolder             = "blt3b4e39bb29abe0a0"                  # Contentstack folder uid
 csTag                = "jessethecat"                          # tag applied to each asset
+csEnvironments       = ["production", "local"]                # CS environments to publish to
+csLocales            = ["en-us"]                              # CS locales to publish
 CS_DESCRIPTION_MAX   = 1000                                   # CS asset description char limit
 
 BASE_DIR      = Path(__file__).resolve().parent
@@ -183,7 +187,7 @@ def format_recent(recent: list[dict]) -> str:
 def prune_archive(keep: int = ARCHIVE_KEEP) -> None:
     """Keep only the most recent `keep` archive files, delete the rest.
 
-    Filenames are ISO dates, so a plain sort is chronological. Images (.jpg)
+    Filenames are ISO timestamps, so a plain sort is chronological. Images (.jpg)
     are the disk hogs and use `keep` directly. The tiny .json files are needed
     by recent_scenes() for de-duplication, so they are never pruned below
     RECENT_COUNT, regardless of how low `keep` is set.
@@ -265,29 +269,26 @@ def build_image_prompt(scene: dict, pet_description: str) -> str:
 
 
 def build_asset_description(scene: dict) -> str:
-    """Render the painting prompt WITHOUT the pet description, for the
-    Contentstack asset's `description` field. The pet description is
-    private (gitignored) and long enough to push the asset description
-    past its 1000-char limit, so the line carrying `{pet_description}`
-    -- plus the header line directly above it -- is stripped before the
-    remaining template is formatted."""
+    """Render the painting prompt for the Contentstack asset `description`
+    field, dropping sections that don't belong there: the pet description
+    (private, gitignored, and big enough to blow past the 1000-char limit)
+    and the Depiction / Composition rendering directives (image-model
+    instructions, not interesting on the asset). Sections in the template
+    are paragraph-separated, so it's the matching paragraph that's
+    dropped, not just one line."""
     raw = PAINTING_PROMPT_FILE.read_text(encoding="utf-8")
     lines = [line for line in raw.splitlines() if not line.lstrip().startswith("#")]
+    text = "\n".join(lines).strip()
 
-    cleaned: list[str] = []
-    for line in lines:
-        if "{pet_description}" in line:
-            # drop the header line directly above (e.g. "The pet (...):"),
-            # if there is one. A blank line in that slot is left alone.
-            if cleaned and cleaned[-1].strip():
-                cleaned.pop()
+    kept: list[str] = []
+    for paragraph in text.split("\n\n"):
+        head = paragraph.lstrip()
+        if "{pet_description}" in paragraph:
             continue
-        cleaned.append(line)
-
-    text = "\n".join(cleaned)
-    while "\n\n\n" in text:
-        text = text.replace("\n\n\n", "\n\n")
-    text = text.strip()
+        if head.startswith(("Depiction:", "Composition:")):
+            continue
+        kept.append(paragraph)
+    text = "\n\n".join(kept).strip()
 
     return text.format(
         art_style=scene["art_style"],
@@ -353,14 +354,14 @@ def trim_for_cs(text: str, limit: int = CS_DESCRIPTION_MAX) -> str:
     return text[:limit].rsplit(" ", 1)[0].rstrip()
 
 
-def upload_to_contentstack(img_bytes: bytes, description: str, today: str,
-                           art_style: str) -> None:
+def upload_to_contentstack(img_bytes: bytes, description: str, stamp: str,
+                           art_style: str) -> str | None:
     if not CS_API_KEY or not CS_MANAGEMENT_TOKEN:
         log.warning("Contentstack upload skipped: CS_API_KEY / "
                     "CS_MANAGEMENT_TOKEN not set in the environment.")
-        return
+        return None
 
-    style_tag = art_style.lower().replace(" ", "_")
+    style_tag = art_style.lower()
 
     url = f"{CS_API_BASE}/v3/assets"
     headers = {
@@ -369,11 +370,11 @@ def upload_to_contentstack(img_bytes: bytes, description: str, today: str,
         # no Content-Type — requests sets the multipart boundary itself
     }
     files = {
-        "asset[upload]": (f"{today}.jpg", img_bytes, "image/jpeg"),
+        "asset[upload]": (f"{stamp}.jpg", img_bytes, "image/jpeg"),
     }
     data = {
         "asset[parent_uid]": csFolder,                  # place it in the folder
-        "asset[title]": f"Painting {today}",
+        "asset[title]": f"Painting {stamp}",
         "asset[description]": trim_for_cs(description), # safety-trim to <= 1000 chars
         "asset[tags]": [csTag, style_tag],              # list -> repeated field, as CS expects
     }
@@ -382,7 +383,65 @@ def upload_to_contentstack(img_bytes: bytes, description: str, today: str,
         # surface Contentstack's actual error message, not just the status code
         raise RuntimeError(f"Contentstack {resp.status_code}: {resp.text}")
     asset = resp.json().get("asset", {})
-    log.info("Uploaded to Contentstack -- asset uid: %s", asset.get("uid"))
+    asset_uid = asset.get("uid")
+    log.info("Uploaded to Contentstack -- asset uid: %s", asset_uid)
+    return asset_uid
+
+
+def publish_to_contentstack(asset_uid: str) -> None:
+    """Publish a Contentstack asset to the configured environments and locales.
+
+    Runs as a separate step from upload because Contentstack assets are not
+    visible to delivery until they have been published.
+    """
+    url = f"{CS_API_BASE}/v3/assets/{asset_uid}/publish"
+    headers = {
+        "api_key": CS_API_KEY,
+        "authorization": CS_MANAGEMENT_TOKEN,
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "asset": {
+            "locales": csLocales,
+            "environments": csEnvironments,
+        }
+    }
+    resp = requests.post(url, headers=headers, json=payload, timeout=60)
+    if not resp.ok:
+        raise RuntimeError(f"Contentstack publish {resp.status_code}: {resp.text}")
+    log.info("Published to Contentstack environments: %s", ", ".join(csEnvironments))
+
+
+# ----------------------------------------------------------------------
+# Wake-on-LAN + reachability probe — the Frame drops off the network
+# entirely in deep standby, where the Art API is unreachable no matter how
+# long we retry. A magic packet on the local broadcast wakes it; the TCP
+# probe records in the log whether the TV was actually on the network, so a
+# failure tells us "TV asleep" vs "art service stuck".
+# ----------------------------------------------------------------------
+def send_wol(mac: str) -> None:
+    """Best-effort Wake-on-LAN magic packet. Logged, never raised."""
+    clean = mac.replace(":", "").replace("-", "").strip()
+    if len(clean) != 12:
+        log.warning("Skipping Wake-on-LAN: malformed MAC %r", mac)
+        return
+    packet = b"\xff" * 6 + bytes.fromhex(clean) * 16
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            s.sendto(packet, ("255.255.255.255", 9))
+        log.info("Sent Wake-on-LAN magic packet to %s", mac)
+    except Exception as e:
+        log.warning("Wake-on-LAN failed (non-fatal): %s", e)
+
+
+def frame_reachable(host: str, port: int = 8002, timeout: float = 3.0) -> bool:
+    """TCP probe of the Art API port; True if the TV answers."""
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except Exception:
+        return False
 
 
 # ----------------------------------------------------------------------
@@ -391,8 +450,16 @@ def upload_to_contentstack(img_bytes: bytes, description: str, today: str,
 def connect_art(retries: int = 5, delay: int = 15):
     last_err = None
     for i in range(1, retries + 1):
+        # If the TV isn't on the network yet, nudge it awake (deep standby)
+        # before burning a 30s Art-API timeout on an unreachable host.
+        up = frame_reachable(TV_IP)
+        if not up and TV_MAC:
+            send_wol(TV_MAC)
+            time.sleep(5)
+            up = frame_reachable(TV_IP)
+        log.info("Connecting to Frame (attempt %d/%d) -- TV %s on network...",
+                 i, retries, "is" if up else "NOT")
         try:
-            log.info("Connecting to Frame (attempt %d/%d)...", i, retries)
             tv = SamsungTVWS(host=TV_IP, port=8002,
                              token_file=str(TOKEN_FILE), timeout=30)
             art = tv.art()
@@ -450,7 +517,11 @@ def main() -> int:
         return 1
 
     ARCHIVE.mkdir(exist_ok=True)
-    today = datetime.date.today().isoformat()
+    now = datetime.datetime.now()
+    # Colons aren't safe in filenames across all filesystems, so the on-disk
+    # stamp uses hyphens for the time component. The metadata gets the proper
+    # ISO 8601 string with colons.
+    stamp = now.strftime("%Y-%m-%dT%H-%M-%S")
 
     try:
         pet_description = load_pet_description()
@@ -466,27 +537,30 @@ def main() -> int:
 
         # archive — store the scene so recent_scenes() can read it back,
         # plus the full prompt for reproducibility
-        (ARCHIVE / f"{today}.jpg").write_bytes(framed)
-        (ARCHIVE / f"{today}.json").write_text(
-            json.dumps({"date": today, "scene": scene, "prompt": prompt},
+        (ARCHIVE / f"{stamp}.jpg").write_bytes(framed)
+        (ARCHIVE / f"{stamp}.json").write_text(
+            json.dumps({"timestamp": now.isoformat(), "scene": scene, "prompt": prompt},
                        indent=2, ensure_ascii=False)
         )
-        log.info("Saved to archive/%s.jpg", today)
+        log.info("Saved to archive/%s.jpg", stamp)
 
         # keep the archive folder from growing forever
         prune_archive()
 
-        # optional Contentstack upload — non-fatal, must not block the TV update
+        # optional Contentstack upload + publish — non-fatal, must not block
+        # the TV update
         if uploadToContentstack:
             try:
-                upload_to_contentstack(
+                asset_uid = upload_to_contentstack(
                     framed,
                     build_asset_description(scene),
-                    today,
+                    stamp,
                     scene["art_style"],
                 )
+                if asset_uid:
+                    publish_to_contentstack(asset_uid)
             except Exception as e:
-                log.warning("Contentstack upload failed (non-fatal): %s", e)
+                log.warning("Contentstack upload/publish failed (non-fatal): %s", e)
         else:
             log.info("Contentstack upload disabled (uploadToContentstack = False).")
 

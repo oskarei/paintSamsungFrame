@@ -3,79 +3,100 @@
 # To permanently retire a style: delete its line.
 # Blank lines and lines starting with '#' are ignored.
 # Keep entries short and signature-like ("Hokusai woodblock"), not full
-# qualifiers ("...emphasising ethereal light...") — Gemini will flesh out
+# qualifiers ("...emphasising ethereal ligt...") — Gemini will flesh out
 # mood and palette on its own.
 
 # --- Japanese ---
-Hokusai woodblock
-Hiroshige woodblock
-Shin-hanga woodblock print
-Sumi-e ink wash
-Nihonga mineral pigment
-Yamato-e scroll
+#Hokusai woodblock
+#iroshige woodblock
+#Shin-hanga woodblock print
+#Sumi-e ink wash
+#Nihonga mineral pigment
+#Yamato-e scroll
 
 # --- Studio illustration / animation ---
-Studio Ghibli watercolour
-Mary Blair gouache concept art
-Quentin Blake ink and wash
-Beatrix Potter pen-and-watercolour
+#Studio Ghibli watercolour
+#Mary Blair gouache concept art
+#Quentin Blake ink and wash
+#Beatrix Potter pen-and-watercolour
 
 # --- 19th–20th century painters ---
 Sargent oil portrait
-Hammershoi interior
-Vermeer Dutch interior
+#Hammershoi interior
+#Vermeer Dutch interior
 Rembrandt chiaroscuro
-Turner storm watercolour
-Constable English pastoral
-Whistler nocturne
-Hopper urban realism
-Wyeth tempera
-Bonnard intimist interior
-Vuillard Nabi domestic scene
-Cassatt mother-and-child pastel
-Klimt gold leaf
-Cezanne structural still-life
+#Turner storm watercolour
+#Constable English pastoral
+#Whistler nocturne
+#Hopper urban realism
+#Wyeth tempera
+#Bonnard intimist interior
+#Vuillard Nabi domestic scene
+#Cassatt mother-and-child pastel
+#Klimt gold leaf
+#Cezanne structural still-life
 Van Gogh post-impressionist oil
-Caravaggio tenebrist oil
+#Caravaggio tenebrist oil
 Monet Giverny plein-air
-Degas pastel
-O'Keeffe macro botanical
-Diebenkorn Ocean Park abstraction
+#Degas pastel
+#O'Keeffe macro botanical
+#Diebenkorn Ocean Park abstraction
 
 # --- Movements ---
-Pointillist (Seurat-style)
-Fauvist (Matisse-style)
-Pre-Raphaelite tableau
-Romantic landscape
-Symbolist allegory
-Art nouveau poster
-Art deco illustration
-Bauhaus poster
-Mid-century modern illustration
-German expressionist woodcut
+#Pointillist (Seurat-style)
+#Fauvist (Matisse-style)
+#Pre-Raphaelite tableau
+#Romantic landscape
+#Symbolist allegory
+#Art nouveau poster
+#Art deco illustration
+#Bauhaus poster
+#Mid-century modern illustration
+#German expressionist woodcut
 
 # --- Other traditions ---
 Kjarval Icelandic landscape
-Persian miniature
-Mughal miniature
-Madhubani folk
-Chinese literati ink
-Korean Minhwa folk
-Mexican muralism (Rivera-style)
+#Persian miniature
+#Mughal miniature
+#Madhubani folk
+#Chinese literati ink
+#Korean Minhwa folk
+#Mexican muralism (Rivera-style)
 Frida Kahlo retablo
-Russian lacquer miniature
-Byzantine icon
+#Russian lacquer miniature
+#Byzantine icon
 
 # --- Mediums / techniques ---
-Charcoal life-drawing
-Pen-and-ink crosshatch
-Lithograph poster
-Screen-print
-Etching
-Soft pastel
-Encaustic
-Fresco
-Tempera on panel
-Mosaic
-Tapestry weave
-Stained-glass window
+#Charcoal life-drawing
+#Pen-and-ink crosshatch
+#Lithograph poster
+#Screen-print
+#Etching
+#Soft pastel
+#Encaustic
+#Fresco
+#Tempera on panel
+#Mosaic
+#Tapestry weave
+#Stained-glass window
+
+# --- Added by Oskar --- #
+Realism
+Impressionism
+Expressionism
+Abstract Expressionism
+Pop Art
+Ancient Art
+Art Deco
+Avant-garde
+Bauhaus
+CoBrA
+Constructivism
+Contemporary Art
+Cubism
+Dutch Golden Age
+Fauvism
+Figurative
+Futurism
+Magical Realism
+Modern Art

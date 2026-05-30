@@ -37,7 +37,9 @@ No package structure — both scripts stand alone by design.
 6. **Archive + prune** — save the JPEG and a JSON sidecar (scene + full prompt),
    then prune the archive to the most recent `ARCHIVE_KEEP` days.
 7. **Contentstack (optional)** — if `uploadToContentstack` is True, upload the
-   JPEG as an asset. Non-fatal: failure here must not block the TV update.
+   JPEG as an asset, then publish it to the configured environments
+   (`csEnvironments`, default `production` + `local`) and locales (`csLocales`,
+   default `en-us`). Non-fatal: failure here must not block the TV update.
 8. **Frame** — connect to the TV (with retry), upload, switch to the new image,
    and delete yesterday's image.
 
@@ -65,10 +67,15 @@ No package structure — both scripts stand alone by design.
 - Required env vars (names only — never commit values):
   - `GEMINI_API_KEY` — Gemini API key
   - `FRAME_TV_IP` — local IP of the Samsung Frame TV
+  - `FRAME_TV_MAC` — MAC of the Frame TV. Optional; when set, `connect_art()`
+    sends a Wake-on-LAN magic packet to wake the TV from deep standby before
+    connecting. Unset = WoL skipped (old behaviour).
   - `CS_API_KEY` — Contentstack API key
   - `CS_MANAGEMENT_TOKEN` — Contentstack management token
 - Required local files:
-  - `petDescription` — plain-text description of the pet (not in git)
+  - `petDescription` — plain-text description of the pet. Committed to git as a
+    working example (the maintainer's own cat); not a secret. Users overwrite
+    it with their own pet — and can leave it uncommitted locally if they want.
   - `token.txt` — Samsung TV pairing token, created on first run (not in git)
   - `artStyles` — curated art-style list, one per line; committed to git
   - `paintingPrompt` — image-prompt template with `{art_style}`, `{pet_description}`,
@@ -83,8 +90,13 @@ No package structure — both scripts stand alone by design.
 - **Frame art mode wakes slowly.** The TV has three power states: on, art mode,
   and deep standby. Connecting while in art mode often needs a few seconds and
   a couple of retries before the Art API responds — this is why `connect_art()`
-  has retry logic. In deep standby it is unreachable entirely (would need
-  Wake-on-LAN).
+  has retry logic. In deep standby it drops off the network entirely: a full
+  30s timeout on every attempt (a clean "no response", not a refusal) is the
+  signature. `connect_art()` now TCP-probes the Art port each attempt, logs
+  whether the TV is on the network, and — if `FRAME_TV_MAC` is set — sends a
+  Wake-on-LAN magic packet to wake it before retrying. The 2026-05-30 cron run
+  failed exactly this way (image generated + archived fine, all 5 Frame
+  attempts timed out); the WoL + probe was added in response.
 - **`IMAGE_SIZE` must be `"4K"` with a capital K.** Lowercase is rejected.
 - **Gemini's `part.as_image()` returns a `types.Image`, not a PIL image.** Pull
   raw bytes from `part.inline_data.data` and open those with PIL instead.
@@ -108,6 +120,8 @@ No package structure — both scripts stand alone by design.
 - `ARCHIVE_KEEP` (90) — days of paintings kept on disk. JSON sidecars are never
   pruned below `RECENT_COUNT` even if this is set lower.
 - `csFolder`, `csTag` — Contentstack folder uid and asset tag.
+- `csEnvironments`, `csLocales` — Contentstack environments and locales the
+  newly uploaded asset is published to.
 
 ## Current state
 

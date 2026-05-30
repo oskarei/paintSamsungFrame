@@ -96,7 +96,7 @@ If you don't want Contentstack archiving, flip `uploadToContentstack = False` at
 
 ### 3. Describe your pet
 
-Create a `petDescription` file (no extension, plain text) in the project root. This is what Gemini sees every day. The more specific, the more consistent your paintings will be:
+There's already a `petDescription` file in the repo — my own cat's description, committed as a working example. It's not a secret; have a read to see the level of detail that works well, then overwrite it with your own pet. No extension, plain text. The more specific, the more consistent your paintings will be:
 
 ```
 A small ginger tabby cat, very fluffy, white socks on all four paws,
@@ -104,7 +104,7 @@ bright green eyes, a slightly grumpy expression that hides a very
 soft soul. Tail with a faint dark tip.
 ```
 
-This file is gitignored — your pet stays personal.
+If you'd rather not commit your version back, just leave the file uncommitted locally — nothing about the script cares whether it's tracked.
 
 Text only is deliberate. Passing a reference photo makes Gemini drop the photo into the painting verbatim instead of reinterpreting the pet in the chosen art style. Words leave room for the style to do its job.
 
@@ -190,9 +190,9 @@ It centre-crops to 16:9 if your image isn't already, then downscales to 3840×21
 | `push.py` | Manual override push | yes |
 | `paintingPrompt` | Image-prompt template, editable | yes |
 | `artStyles` | Curated art-style list | yes |
+| `petDescription` | Pet description — my cat's, kept as an example to overwrite | yes |
 | `requirements.txt` | Python deps | yes |
 | `CLAUDE.md` | Project context for AI coding assistants | yes |
-| `petDescription` | Your pet description | no (personal) |
 | `.env` | API keys, TV IP | no (secret) |
 | `token.txt` | Frame pairing token | no (auto-generated) |
 | `state.json` | Tracks last cron-uploaded asset for cleanup | no |
