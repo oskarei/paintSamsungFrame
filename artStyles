@@ -7,25 +7,25 @@
 # mood and palette on its own.
 
 # --- Japanese ---
-#Hokusai woodblock
+Hokusai woodblock
 #iroshige woodblock
 #Shin-hanga woodblock print
-#Sumi-e ink wash
+Sumi-e ink wash
 #Nihonga mineral pigment
 #Yamato-e scroll
 
 # --- Studio illustration / animation ---
 #Studio Ghibli watercolour
-#Mary Blair gouache concept art
+Mary Blair gouache concept art
 #Quentin Blake ink and wash
 #Beatrix Potter pen-and-watercolour
 
 # --- 19th–20th century painters ---
-Sargent oil portrait
+#Sargent oil portrait
 #Hammershoi interior
 #Vermeer Dutch interior
-Rembrandt chiaroscuro
-#Turner storm watercolour
+#Rembrandt chiaroscuro
+Turner storm watercolour
 #Constable English pastoral
 #Whistler nocturne
 #Hopper urban realism
@@ -33,70 +33,70 @@ Rembrandt chiaroscuro
 #Bonnard intimist interior
 #Vuillard Nabi domestic scene
 #Cassatt mother-and-child pastel
-#Klimt gold leaf
+Klimt gold leaf
 #Cezanne structural still-life
-Van Gogh post-impressionist oil
+#Van Gogh post-impressionist oil
 #Caravaggio tenebrist oil
-Monet Giverny plein-air
+#Monet Giverny plein-air
 #Degas pastel
 #O'Keeffe macro botanical
 #Diebenkorn Ocean Park abstraction
 
 # --- Movements ---
-#Pointillist (Seurat-style)
-#Fauvist (Matisse-style)
+Pointillist (Seurat-style)
+Fauvist (Matisse-style)
 #Pre-Raphaelite tableau
 #Romantic landscape
 #Symbolist allegory
-#Art nouveau poster
+Art nouveau poster
 #Art deco illustration
 #Bauhaus poster
 #Mid-century modern illustration
-#German expressionist woodcut
+German expressionist woodcut
 
 # --- Other traditions ---
-Kjarval Icelandic landscape
-#Persian miniature
+#Kjarval Icelandic landscape
+Persian miniature
 #Mughal miniature
-#Madhubani folk
+Madhubani folk
 #Chinese literati ink
 #Korean Minhwa folk
-#Mexican muralism (Rivera-style)
-Frida Kahlo retablo
+Mexican muralism (Rivera-style)
+#Frida Kahlo retablo
 #Russian lacquer miniature
-#Byzantine icon
+Byzantine icon
 
 # --- Mediums / techniques ---
 #Charcoal life-drawing
 #Pen-and-ink crosshatch
 #Lithograph poster
-#Screen-print
+Screen-print
 #Etching
 #Soft pastel
 #Encaustic
 #Fresco
 #Tempera on panel
-#Mosaic
+Mosaic
 #Tapestry weave
-#Stained-glass window
+Stained-glass window
 
 # --- Added by Oskar --- #
-Realism
-Impressionism
-Expressionism
-Abstract Expressionism
+#Realism
+#Impressionism
+#Expressionism
+#Abstract Expressionism
 Pop Art
-Ancient Art
-Art Deco
-Avant-garde
-Bauhaus
-CoBrA
+#Ancient Art
+#Art Deco
+#Avant-garde
+#Bauhaus
+#CoBrA
 Constructivism
-Contemporary Art
+#Contemporary Art
 Cubism
-Dutch Golden Age
-Fauvism
-Figurative
+#Dutch Golden Age
+#Fauvism
+#Figurative
 Futurism
-Magical Realism
-Modern Art
+#Magical Realism
+#Modern Art
