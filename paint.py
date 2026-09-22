@@ -508,6 +508,32 @@ def upload_and_show(art, img_bytes: bytes) -> None:
     save_state(state)
 
 
+def push_to_frame(img_bytes: bytes, retries: int = 4, delay: int = 30) -> None:
+    """Connect + upload + switch, retrying the whole exchange.
+
+    connect_art() already retries the *connect*, but that only covers getting
+    on the TV. The upload itself can still fail mid-transfer: the Frame accepts
+    the websocket handshake while art mode is waking, then stalls or drops the
+    socket partway through the multi-MB 4K JPEG. Seen in the wild as
+    'The write operation timed out' and websocket close opcode 1005, both
+    after a clean 'Connection confirmed'. The socket is dead after such a
+    failure, so each attempt reconnects from scratch for a fresh one.
+    """
+    last_err = None
+    for attempt in range(1, retries + 1):
+        try:
+            art = connect_art()
+            upload_and_show(art, img_bytes)
+            return
+        except Exception as e:
+            last_err = e
+            log.warning("Frame upload attempt %d/%d failed: %s",
+                        attempt, retries, e)
+            if attempt < retries:
+                time.sleep(delay)
+    raise RuntimeError(f"Could not push image to Frame after {retries} attempts: {last_err}")
+
+
 # ----------------------------------------------------------------------
 # main
 # ----------------------------------------------------------------------
@@ -564,8 +590,7 @@ def main() -> int:
         else:
             log.info("Contentstack upload disabled (uploadToContentstack = False).")
 
-        art = connect_art()
-        upload_and_show(art, framed)
+        push_to_frame(framed)
         log.info("Done -- today's painting is on the TV.")
         return 0
 
